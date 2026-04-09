@@ -1,0 +1,212 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: jobs
+    description: AI-powered job search
+  - name: courses
+    description: Course recommendations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /jobs/search:
+    get:
+      operationId: searchJobs
+      tags: [jobs]
+      summary: AI-powered job search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 6
+      responses:
+        "200":
+          description: Job search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSearchResponse"
+
+  /courses/search:
+    get:
+      operationId: searchCourses
+      tags: [courses]
+      summary: Search courses by interest
+      parameters:
+        - name: interest
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, free, paid]
+            default: all
+      responses:
+        "200":
+          description: Course results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseSearchResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Job:
+      type: object
+      properties:
+        title:
+          type: string
+        company:
+          type: string
+        location:
+          type: string
+        salary:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        match_score:
+          type: string
+        apply_link:
+          type: string
+        type:
+          type: string
+        experience:
+          type: string
+        posted:
+          type: string
+        source:
+          type: string
+      required:
+        - title
+        - company
+        - location
+        - salary
+        - skills
+        - match_score
+        - apply_link
+
+    JobSearchResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+        total:
+          type: integer
+        query:
+          type: string
+        page:
+          type: integer
+        hasMore:
+          type: boolean
+      required:
+        - jobs
+        - total
+        - query
+        - page
+        - hasMore
+
+    Course:
+      type: object
+      properties:
+        title:
+          type: string
+        provider:
+          type: string
+        url:
+          type: string
+        price:
+          type: string
+        type:
+          type: string
+          enum: [free, paid]
+        level:
+          type: string
+        duration:
+          type: string
+        rating:
+          type: string
+        students:
+          type: string
+        description:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        certificate:
+          type: boolean
+      required:
+        - title
+        - provider
+        - url
+        - price
+        - type
+        - level
+        - duration
+        - rating
+        - students
+        - description
+        - skills
+        - certificate
+
+    CourseSearchResponse:
+      type: object
+      properties:
+        courses:
+          type: array
+          items:
+            $ref: "#/components/schemas/Course"
+        interest:
+          type: string
+      required:
+        - courses
+        - interest
