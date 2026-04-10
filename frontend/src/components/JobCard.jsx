@@ -267,10 +267,22 @@ export default function JobCard({ job, index, highlight = false }) {
               style={{ background: 'linear-gradient(135deg, #0077ff, #00d4ff)', color: '#fff' }}>
               <Zap size={11} /> Apply Now
             </button>
-            <button onClick={() => setExpanded(true)}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
+            <button 
+              onClick={() => {
+                const targetLink = job.apply_link || job.externalLink;
+                if (targetLink && targetLink.includes('http')) {
+                  window.open(targetLink, '_blank');
+                } else {
+                  setExpanded(true);
+                }
+              }}
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all hover:bg-black/5 dark:hover:bg-white/5"
               style={{ background: surfaceBg, border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, color: textMuted }}>
-              <Info size={11} /> More Info
+              {(job.apply_link || job.externalLink) && (job.apply_link || job.externalLink).includes('http') ? (
+                <><ExternalLink size={11} /> View on LinkedIn</>
+              ) : (
+                <><Info size={11} /> More Info</>
+              )}
             </button>
           </div>
         </div>

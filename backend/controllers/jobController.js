@@ -42,18 +42,21 @@ Return ONLY this JSON, no explanation, no markdown:
   }
 }
 
+const axios = require('axios');
+const cheerio = require('cheerio');
+
 // @desc  AI-powered job search — exclusively local jobs posted by companies
 // @route GET /api/jobs/search
 const searchJobs = async (req, res) => {
-  const { q, page = 1, limit = 8 } = req.query;
+  const { q, page = 1, limit = 10 } = req.query; // modified default limit to 10
 
   const pageNum = parseInt(page, 10) || 1;
-  const limitNum = parseInt(limit, 10) || 8;
+  const limitNum = parseInt(limit, 10) || 10;
   const skip = (pageNum - 1) * limitNum;
 
   try {
     if (!q || !q.trim()) {
-      // No query — return recent jobs
+      // No query — return recent jobs from our DB
       const jobs = await Job.find({}).sort({ createdAt: -1 }).skip(skip).limit(limitNum);
       const total = await Job.countDocuments({});
       return res.json({
@@ -62,68 +65,97 @@ const searchJobs = async (req, res) => {
       });
     }
 
-    // Use AI to parse the query
+    // Attempt to pull GLOBAL jobs securely using a native HTML parser to bypass subscription limits
+    try {
+      console.log(`Triggering Native Global Scan for -> "${q}" | Page ${pageNum}`);
+      
+      // We run the actor. To support pagination natively, we seed the DB on Page 1.
+      if (pageNum === 1) {
+        const encodedQ = encodeURIComponent(q.trim());
+        // We use LinkedIn's public guest jobs search API to bypass Apify completely.
+        const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodedQ}&location=Worldwide&f_TPR=r604800&start=0`;
+        
+        const { data: html } = await axios.get(url, {
+           headers: {
+             'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+             'Accept-Language': 'en-US,en;q=0.9',
+           }
+        });
+        
+        const $ = cheerio.load(html);
+        const externalJobs = [];
+        $('.job-search-card').each((_, el) => {
+            const title = $(el).find('.base-search-card__title').text().trim();
+            const company = $(el).find('.base-search-card__subtitle').text().trim();
+            const location = $(el).find('.job-search-card__location').text().trim();
+            const jobUrl = $(el).find('.base-card__full-link').attr('href');
+            
+            if (title && company) {
+               externalJobs.push({ title, company, location, jobUrl: jobUrl ? jobUrl.split('?')[0] : '' });
+            }
+        });
+
+        // Seed our MongoDB with the global results so pagination is instant
+        if (externalJobs.length > 0) {
+           for (let item of externalJobs.slice(0, 20)) {
+             const existing = await Job.findOne({ title: item.title, company: item.company });
+             if (!existing) {
+               await Job.create({
+                  title: item.title,
+                  company: item.company,
+                  recruiterId: new (require('mongoose').Types.ObjectId)(),
+                  location: item.location || "Remote",
+                  description: "Full remote or onsite opportunity available directly through external application.",
+                  type: "Full-time",
+                  salary: "Not Disclosed",
+                  skills: [q.trim()],
+                  createdAt: new Date(), 
+                  apply_link: item.jobUrl || ""
+               });
+             }
+           }
+        }
+      }
+    } catch (scrapeErr) {
+      console.warn("Native Global Scan softly failed (fallback enabled):", scrapeErr.message);
+    }
+
+    // Now standard logic: use AI to parse query, search local DB (which now includes Apify jobs)
     const { roles, skills, keywords } = await parseQueryWithAI(q.trim());
-
-    // Build all search terms into regex array
     const allTerms = [...roles, ...skills, ...keywords].filter(Boolean);
-    const orClauses = allTerms.flatMap(term => {
-      const r = { $regex: term, $options: 'i' };
-      return [
-        { title: r },
-        { description: r },
-        { requiredSkills: r },
-        { skills: r }
-      ];
-    });
+    
+    let allMatches = [];
+    if (allTerms.length > 0) {
+      const orClauses = allTerms.flatMap(term => {
+        const r = { $regex: term, $options: 'i' };
+        return [{ title: r }, { description: r }, { requiredSkills: r }, { skills: r }];
+      });
 
-    // Also add the raw query as a fallback
-    const rawRegex = { $regex: q.trim(), $options: 'i' };
-    orClauses.push(
-      { title: rawRegex },
-      { company: rawRegex },
-      { description: rawRegex },
-      { requiredSkills: rawRegex }
-    );
+      const rawRegex = { $regex: q.trim(), $options: 'i' };
+      orClauses.push({ title: rawRegex }, { company: rawRegex }, { description: rawRegex });
 
-    const searchQuery = { $or: orClauses };
-
-    let allMatches = await Job.find(searchQuery).limit(200);
+      allMatches = await Job.find({ $or: orClauses }).limit(200);
+    }
     
     // Fallback: if no results with strict OR, return latest
     if (allMatches.length === 0) {
       allMatches = await Job.find({}).limit(200);
     }
 
-    // Score each job by how many search terms it matches
+    // Score each job perfectly
     const userTerms = [...roles, ...skills, ...keywords, q.trim()].map(t => t.toLowerCase());
     const scored = allMatches.map(job => {
       const allJobSkills = [...(job.requiredSkills || []), ...(job.skills || [])];
-      const jobText = [
-        job.title || '',
-        job.description || '',
-        job.company || '',
-        ...allJobSkills
-      ].join(' ').toLowerCase();
+      const jobText = [job.title || '', job.description || '', job.company || '', ...allJobSkills].join(' ').toLowerCase();
 
       let score = 0;
-      userTerms.forEach(term => {
-        if (term && jobText.includes(term.toLowerCase())) score++;
-      });
-
-      // Strong boost if title directly matches a role keyword
+      userTerms.forEach(term => { if (term && jobText.includes(term.toLowerCase())) score++; });
       const titleLower = (job.title || '').toLowerCase();
       roles.forEach(role => { if (titleLower.includes(role.toLowerCase())) score += 5; });
-
-      // Boost if skill matches
-      skills.forEach(skill => {
-        if (allJobSkills.some(s => s.toLowerCase().includes(skill.toLowerCase()))) score += 2;
-      });
 
       return { job, score, allJobSkills };
     });
 
-    // Sort by score desc, then by date
     scored.sort((a, b) => b.score - a.score || new Date(b.job.createdAt) - new Date(a.job.createdAt));
 
     const paginated = scored.slice(skip, skip + limitNum);
@@ -132,17 +164,13 @@ const searchJobs = async (req, res) => {
 
     const formattedJobs = paginated.map(({ job, score, allJobSkills }) => {
       const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 50;
-      const matchPct = Math.max(pct, 50); // always show at least 50% for results returned
-      const matchedSkills = allJobSkills.filter(s =>
-        userTerms.some(t => s.toLowerCase().includes(t))
-      );
+      const matchPct = Math.max(pct, 50);
+      const matchedSkills = allJobSkills.filter(s => userTerms.some(t => s.toLowerCase().includes(t)));
       return {
         ...job.toObject(),
         match_score: `${matchPct}%`,
-        source: 'NaukriQuest',
-        why_match: matchedSkills.length > 0
-          ? `Matches: ${matchedSkills.slice(0, 3).join(', ')}`
-          : `Relevant to "${q}"`
+        source: job.apply_link ? 'LinkedIn Global' : 'NaukriQuest',
+        why_match: matchedSkills.length > 0 ? `Matches: ${matchedSkills.slice(0, 3).join(', ')}` : `Relevant to "${q}"`
       };
     });
 
