@@ -195,7 +195,6 @@ export default function RecruiterDashboard() {
   );
 
   return (
-    <>
     <div className="min-h-screen pb-24 relative" style={{ background: isDark ? '#000' : '#f0f4f8' }}>
       {/* Top Banner Gradient */}
       <div className="absolute top-0 left-0 w-full h-96 opacity-10 pointer-events-none" 
@@ -607,19 +606,19 @@ export default function RecruiterDashboard() {
           </div>
         )}
       </div>
-    </div>
 
-      {/* ── CANDIDATE PROFILE MODAL ──────────────────────────────────────────── */}
+      {/* ── CANDIDATE PROFILE MODAL ─────────────────────────────────────── */}
       {selectedCandidate && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
           onClick={() => { setSelectedCandidate(null); setCandidateDetails(null); }}
         >
           <div
-            className="w-full max-w-2xl rounded-3xl overflow-hidden flex flex-col relative"
+            className="w-full max-w-2xl rounded-3xl overflow-hidden flex flex-col"
             style={{ background: isDark ? '#0f1423' : '#fff', border: `1px solid ${SBR}`, maxHeight: '88vh' }}
             onClick={e => e.stopPropagation()}
           >
+            {/* Header */}
             <div className="px-6 py-5 border-b flex items-center justify-between shrink-0" style={{ borderColor: SBR }}>
               <h2 className="text-xl font-black" style={{ color: T }}>Candidate Profile</h2>
               <button onClick={() => { setSelectedCandidate(null); setCandidateDetails(null); }}
@@ -628,6 +627,7 @@ export default function RecruiterDashboard() {
               </button>
             </div>
 
+            {/* Body */}
             <div className="p-6 overflow-y-auto">
               {loadingCandidate ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -635,18 +635,20 @@ export default function RecruiterDashboard() {
                   <p className="text-sm font-bold" style={{ color: TM }}>Loading profile...</p>
                 </div>
               ) : candidateDetails ? (
-                <div className="space-y-6">
+                <div className="space-y-5">
+                  {/* Identity */}
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white shadow-xl shrink-0"
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white shrink-0"
                          style={{ background: 'linear-gradient(135deg, #00d4ff, #0055ff)' }}>
                       {(candidateDetails.name || 'U').charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="text-xl font-black leading-tight" style={{ color: T }}>{candidateDetails.name || '—'}</h3>
-                      <p className="text-sm font-bold mt-1" style={{ color: '#00d4ff' }}>{candidateDetails.title || 'Applicant'}</p>
+                      <h3 className="text-xl font-black" style={{ color: T }}>{candidateDetails.name || '—'}</h3>
+                      <p className="text-sm font-bold mt-0.5" style={{ color: '#00d4ff' }}>{candidateDetails.title || 'Applicant'}</p>
                     </div>
                   </div>
 
+                  {/* Contact Info Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       { label: 'Email', value: candidateDetails.email },
@@ -654,20 +656,24 @@ export default function RecruiterDashboard() {
                       { label: 'Experience', value: candidateDetails.experience },
                       { label: 'Education', value: candidateDetails.education },
                     ].filter(f => f.value).map(({ label, value }) => (
-                      <div key={label} className="p-4 rounded-2xl" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb', border: `1px solid ${SBR}` }}>
+                      <div key={label} className="p-4 rounded-2xl"
+                           style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb', border: `1px solid ${SBR}` }}>
                         <p className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: TM }}>{label}</p>
                         <p className="text-sm font-semibold break-all" style={{ color: T }}>{value}</p>
                       </div>
                     ))}
                   </div>
 
+                  {/* Summary */}
                   {candidateDetails.summary && (
-                    <div className="p-4 rounded-2xl" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb', border: `1px solid ${SBR}` }}>
-                      <p className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: TM }}>Professional Summary</p>
+                    <div className="p-4 rounded-2xl"
+                         style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb', border: `1px solid ${SBR}` }}>
+                      <p className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: TM }}>Summary</p>
                       <p className="text-sm leading-relaxed" style={{ color: T }}>{candidateDetails.summary}</p>
                     </div>
                   )}
 
+                  {/* Skills */}
                   {candidateDetails.skills?.length > 0 && (
                     <div>
                       <p className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: TM }}>Skills</p>
@@ -682,8 +688,9 @@ export default function RecruiterDashboard() {
                     </div>
                   )}
 
+                  {/* Social */}
                   {(candidateDetails.linkedin || candidateDetails.github) && (
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
                       {candidateDetails.linkedin && (
                         <a href={candidateDetails.linkedin} target="_blank" rel="noreferrer"
                            className="text-xs font-bold px-4 py-2 rounded-xl"
@@ -701,6 +708,7 @@ export default function RecruiterDashboard() {
                     </div>
                   )}
 
+                  {/* Resume button */}
                   {candidateDetails.resumeUrl ? (
                     <a href={candidateDetails.resumeUrl} target="_blank" rel="noreferrer"
                        className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-black text-sm text-white transition-all hover:scale-[1.02]"
@@ -718,13 +726,14 @@ export default function RecruiterDashboard() {
                 <div className="text-center py-16" style={{ color: TM }}>
                   <Users size={40} className="mx-auto mb-4 opacity-20" />
                   <p className="font-bold">Profile not found</p>
-                  <p className="text-xs mt-1">This candidate hasn't completed their profile yet.</p>
+                  <p className="text-xs mt-1">This candidate hasn't filled their profile yet.</p>
                 </div>
               )}
             </div>
           </div>
         </div>
       )}
-    </>
+
+    </div>
   );
 }
