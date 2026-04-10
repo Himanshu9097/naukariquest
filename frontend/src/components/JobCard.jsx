@@ -202,11 +202,11 @@ export default function JobCard({ job, index, highlight = false }) {
           )}
         </div>
         <div className="px-4 pb-4 pt-3" style={{ borderTop: `1px solid ${divider}` }}>
-          <a href={job.apply_link} target="_blank" rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm"
+          <button onClick={handleApply}
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm transition-transform hover:scale-[1.02]"
             style={{ background: 'linear-gradient(135deg, #0077ff, #00d4ff)', color: '#fff', boxShadow: '0 4px 16px rgba(0,119,255,0.3)' }}>
-            <Zap size={13} /> Apply Now <ExternalLink size={11} style={{ opacity: 0.8 }} />
-          </a>
+            <Zap size={13} /> Apply Now
+          </button>
         </div>
       </div>
     </div>,

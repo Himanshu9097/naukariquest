@@ -5,7 +5,7 @@ const {
   getApplications, updateApplicationStatus,
   createSchedule, getSchedules, updateSchedule, deleteSchedule,
   getRecruiterStats,
-  applyForJob, getCandidateApplications, getCandidateStats, getCandidateSchedules,
+  applyForJob, getCandidateApplications, getCandidateStats, getCandidateSchedules, submitMockTest, getMockTestQuestions
 } = require('../controllers/dashboardController');
 
 // Recruiter routes
@@ -26,5 +26,7 @@ router.post('/candidate/apply', applyForJob);
 router.get('/candidate/:candidateId/applications', getCandidateApplications);
 router.get('/candidate/:candidateId/stats', getCandidateStats);
 router.get('/candidate/schedules', getCandidateSchedules);
+router.post('/candidate/:candidateId/mocktest', submitMockTest);
+router.get('/candidate/mocktest/questions/:type', getMockTestQuestions);
 
 module.exports = router;

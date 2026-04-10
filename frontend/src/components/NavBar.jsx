@@ -51,6 +51,7 @@ export default function NavBar() {
     { href: '/', icon: <LayoutDashboard size={13} />, mIcon: <LayoutDashboard size={14} />, label: 'Jobs', mLabel: 'AI Job Search', color: '#00d4ff' },
     { href: '/courses', icon: <BookOpen size={13} />, mIcon: <BookOpen size={14} />, label: 'Courses', mLabel: 'Free & Paid Courses', color: '#30d158' },
     { href: '/resume-match', icon: <Target size={13} />, mIcon: <Target size={14} />, label: 'Resume', mLabel: 'Resume Match AI', color: '#bf5af2' },
+    { href: '/assessments', icon: <Target size={13} />, mIcon: <Target size={14} />, label: 'Tests', mLabel: 'Mock Assessments', color: '#30d158' },
     { href: '/apply', icon: <Send size={13} />, mIcon: <Send size={14} />, label: 'Apply AI', mLabel: 'Apply Assistant', color: '#00d4ff' },
     { href: '/portal', icon: <Briefcase size={13} />, mIcon: <Briefcase size={14} />, label: 'Portal', mLabel: 'Job Portal', color: '#ffd60a' },
   ];

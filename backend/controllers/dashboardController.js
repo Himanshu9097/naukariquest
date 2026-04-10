@@ -1,12 +1,22 @@
+const mongoose = require('mongoose');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const Schedule = require('../models/Schedule');
 const ResumeAnalysis = require('../models/ResumeAnalysis');
 
+function getRecruiterFilter(req) {
+  const { recruiterId } = req.query;
+  if (recruiterId && mongoose.isValidObjectId(recruiterId)) {
+    return { recruiterId }; // assumes models have recruiterId
+  }
+  return {};
+}
+
 // ─── RECRUITER: Get my posted jobs ──────────────────────────────────────────
 const getRecruiterJobs = async (req, res) => {
   try {
-    const jobs = await Job.find().sort({ createdAt: -1 });
+    const filter = getRecruiterFilter(req);
+    const jobs = await Job.find(filter).sort({ createdAt: -1 });
     res.json(jobs);
   } catch (e) { res.status(500).json({ error: 'Failed to fetch jobs' }); }
 };
@@ -40,9 +50,14 @@ const deleteRecruiterJob = async (req, res) => {
 // ─── RECRUITER: Get all applications for their jobs ─────────────────────────
 const getApplications = async (req, res) => {
   try {
-    const apps = await Application.find()
+    const filter = getRecruiterFilter(req);
+    // Find recruiter's jobs first
+    const jobs = await Job.find(filter).select('_id');
+    const jobIds = jobs.map(j => j._id);
+    
+    const apps = await Application.find(filter.recruiterId ? { jobId: { $in: jobIds } } : {})
       .populate('jobId', 'title company location')
-      .populate('candidateId', 'name email')
+      .populate('candidateId', 'name email jobFitScore')
       .sort({ createdAt: -1 });
     res.json(apps);
   } catch (e) { res.status(500).json({ error: 'Failed to fetch applications' }); }
@@ -59,7 +74,13 @@ const updateApplicationStatus = async (req, res) => {
 // ─── RECRUITER: Schedule interview/exam ─────────────────────────────────────
 const createSchedule = async (req, res) => {
   try {
-    const schedule = new Schedule(req.body);
+    const body = { ...req.body };
+    if (!body.link) {
+      // Auto-generate Google Meet link if none provided
+      const randomString = Math.random().toString(36).substring(2, 12).match(/.{1,3}/g).join('-');
+      body.link = `https://meet.google.com/${randomString}`;
+    }
+    const schedule = new Schedule(body);
     const saved = await schedule.save();
     res.status(201).json(saved);
   } catch (e) { res.status(500).json({ error: 'Failed to create schedule' }); }
@@ -67,7 +88,8 @@ const createSchedule = async (req, res) => {
 
 const getSchedules = async (req, res) => {
   try {
-    const schedules = await Schedule.find()
+    const filter = getRecruiterFilter(req);
+    const schedules = await Schedule.find(filter)
       .populate('jobId', 'title company')
       .sort({ date: 1 });
     res.json(schedules);
@@ -91,12 +113,19 @@ const deleteSchedule = async (req, res) => {
 // ─── RECRUITER: Dashboard stats ─────────────────────────────────────────────
 const getRecruiterStats = async (req, res) => {
   try {
-    const totalJobs = await Job.countDocuments();
-    const totalApps = await Application.countDocuments();
-    const shortlisted = await Application.countDocuments({ status: 'shortlisted' });
-    const interviews = await Schedule.countDocuments({ type: 'interview' });
-    const exams = await Schedule.countDocuments({ type: 'exam' });
-    const hired = await Application.countDocuments({ status: 'hired' });
+    const filter = getRecruiterFilter(req);
+    const totalJobs = await Job.countDocuments(filter);
+    
+    // Find recruiter's jobs to filter apps
+    const jobs = await Job.find(filter).select('_id');
+    const jobIds = jobs.map(j => j._id);
+    const appFilter = filter.recruiterId ? { jobId: { $in: jobIds } } : {};
+
+    const totalApps = await Application.countDocuments(appFilter);
+    const shortlisted = await Application.countDocuments({ ...appFilter, status: 'shortlisted' });
+    const interviews = await Schedule.countDocuments({ ...filter, type: 'interview' });
+    const exams = await Schedule.countDocuments({ ...filter, type: 'exam' });
+    const hired = await Application.countDocuments({ ...appFilter, status: 'hired' });
     res.json({ totalJobs, totalApps, shortlisted, interviews, exams, hired });
   } catch (e) { res.status(500).json({ error: 'Stats fetch failed' }); }
 };
@@ -106,6 +135,7 @@ const applyForJob = async (req, res) => {
   try {
     const existing = await Application.findOne({ jobId: req.body.jobId, candidateId: req.body.candidateId });
     if (existing) return res.status(400).json({ error: 'Already applied for this job' });
+    
     const app = new Application(req.body);
     const saved = await app.save();
     res.status(201).json(saved);
@@ -139,18 +169,63 @@ const getCandidateStats = async (req, res) => {
     const hired = await Application.countDocuments({ ...filter, status: 'hired' });
     const analysisCount = await ResumeAnalysis.countDocuments();
     const latestAnalysis = await ResumeAnalysis.findOne().sort({ createdAt: -1 });
-    res.json({ totalApps, shortlisted, interviews, hired, analysisCount, latestAtsScore: latestAnalysis?.ats_score ?? null });
+    
+    const User = require('../models/User');
+    const user = await User.findById(candidateId).select('jobFitScore');
+    const jobFitScore = user?.jobFitScore || 0;
+
+    res.json({ 
+      totalApps, shortlisted, interviews, hired, 
+      analysisCount, latestAtsScore: latestAnalysis?.ats_score ?? null,
+      jobFitScore
+    });
   } catch (e) { res.status(500).json({ error: 'Stats fetch failed' }); }
 };
 
 // ─── CANDIDATE: Get upcoming schedules ──────────────────────────────────────
 const getCandidateSchedules = async (req, res) => {
   try {
-    const schedules = await Schedule.find({ status: 'scheduled', date: { $gte: new Date() } })
+    const { candidateId } = req.params;
+    if (!candidateId || !mongoose.isValidObjectId(candidateId)) {
+      return res.json([]);
+    }
+
+    // Find jobs the candidate explicitly applied for
+    const apps = await Application.find({ candidateId }).select('jobId');
+    const appliedJobIds = apps.map(app => app.jobId);
+
+    const schedules = await Schedule.find({ 
+      jobId: { $in: appliedJobIds },
+      status: 'scheduled', 
+      date: { $gte: new Date() } 
+    })
       .populate('jobId', 'title company')
       .sort({ date: 1 });
     res.json(schedules);
   } catch (e) { res.status(500).json({ error: 'Failed to fetch schedules' }); }
+};
+
+// ─── CANDIDATE: Submit Mock Test ────────────────────────────────────────────
+const submitMockTest = async (req, res) => {
+  try {
+    const { candidateId } = req.params;
+    const { pointsEarned } = req.body;
+    const User = require('../models/User');
+    const user = await User.findByIdAndUpdate(candidateId, { $inc: { jobFitScore: pointsEarned || 10 } }, { new: true });
+    res.json({ success: true, jobFitScore: user?.jobFitScore || 0 });
+  } catch (e) { res.status(500).json({ error: 'Failed to submit mock test' }); }
+};
+
+const getMockTestQuestions = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const Question = require('../models/Question');
+    const questions = await Question.aggregate([
+      { $match: { type: type } },
+      { $sample: { size: 5 } } // deliver 5 random questions for a speedy test
+    ]);
+    res.json(questions);
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch mock test questions' }); }
 };
 
 module.exports = {
@@ -158,5 +233,5 @@ module.exports = {
   getApplications, updateApplicationStatus,
   createSchedule, getSchedules, updateSchedule, deleteSchedule,
   getRecruiterStats,
-  applyForJob, getCandidateApplications, getCandidateStats, getCandidateSchedules,
+  applyForJob, getCandidateApplications, getCandidateStats, getCandidateSchedules, submitMockTest, getMockTestQuestions
 };

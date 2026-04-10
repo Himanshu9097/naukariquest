@@ -63,6 +63,26 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Silently feed latest company jobs on mount so new posts show up instantly
+  useEffect(() => {
+    async function fetchLatest() {
+      try {
+        const result = await searchJobsFromAPI('', 1, 6);
+        if (result && result.jobs) {
+          setJobs(result.jobs);
+          saveJobsToStorage(result.jobs);
+          if (result.jobs.length > 0) {
+            setHasSearched(true);
+            setTerminalDone(true);
+          }
+        }
+      } catch (err) {
+        console.error('Silent fetch failed:', err);
+      }
+    }
+    fetchLatest();
+  }, []);
+
   useEffect(() => {
     const text = heroTexts[heroIdx];
     let i = 0;

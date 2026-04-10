@@ -3,6 +3,7 @@ import { ThemeProvider } from '@/lib/theme';
 import HomePage from '@/pages/HomePage';
 import CoursesPage from '@/pages/CoursesPage';
 import ResumeMatchPage from '@/pages/ResumeMatchPage';
+import AssessmentsPage from '@/pages/AssessmentsPage';
 import ApplyPage from '@/pages/ApplyPage';
 import PortalPage from '@/pages/PortalPage';
 import AdminDashboard from '@/pages/AdminDashboard';
@@ -20,6 +21,7 @@ function AppRouter() {
       <Route path="/" component={HomePage} />
       <Route path="/courses" component={CoursesPage} />
       <Route path="/resume-match" component={ResumeMatchPage} />
+      <Route path="/assessments" component={AssessmentsPage} />
       <Route path="/apply" component={ApplyPage} />
       <Route path="/portal" component={PortalPage} />
       <Route path="/admin" component={AdminDashboard} />

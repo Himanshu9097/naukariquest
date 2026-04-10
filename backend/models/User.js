@@ -6,6 +6,7 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['candidate', 'company'], default: 'candidate' },
   name: { type: String },
   profilePic: { type: String },
+  jobFitScore: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
 });
 
