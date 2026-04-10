@@ -107,15 +107,18 @@ const extractResume = [
       const fileName = req.file.originalname.toLowerCase();
       
       if (mimetype === 'application/pdf' || fileName.endsWith('.pdf')) {
+        const pdfParse = require('pdf-parse');
         const data = await pdfParse(req.file.buffer);
         text = data.text;
       } else if (mimetype.includes('word') || fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+        const mammoth = require('mammoth');
         const doc = await mammoth.extractRawText({ buffer: req.file.buffer });
         text = doc.value;
       } else {
         text = req.file.buffer.toString('utf-8');
       }
 
+      const imagekit = getImageKit();
       const up = await imagekit.upload({ file: req.file.buffer, fileName: req.file.originalname, folder: '/resumes' });
       res.json({ text: text.trim().slice(0, 8000), fileUrl: up.url });
     } catch (err) { 
@@ -134,6 +137,7 @@ const analyzeResume = async (req, res) => {
   TEXT: ${text.slice(0, 4000)}`;
 
   try {
+    const ai = getAI();
     const comp = await ai.chat.completions.create({
       model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
       messages: [{ role: 'user', content: prompt }],
