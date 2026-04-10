@@ -5,13 +5,12 @@ let _transporter = null;
 const getTransporter = () => {
   if (_transporter) return _transporter;
   _transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // SSL
     auth: {
-      type: 'OAuth2',
       user: process.env.EMAIL_USER,
-      clientId: process.env.GMAIL_CLIENT_ID,
-      clientSecret: process.env.GMAIL_CLIENT_SECRET,
-      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+      pass: process.env.GMAIL_APP_PASSWORD, // Gmail App Password (16-char)
     },
   });
   return _transporter;
