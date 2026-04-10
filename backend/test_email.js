@@ -1,35 +1,39 @@
 require('dotenv').config({ path: __dirname + '/.env' });
-const nodemailer = require('nodemailer');
+const mongoose = require('mongoose');
 
 async function test() {
-  console.log('EMAIL_USER:', process.env.EMAIL_USER);
-  console.log('APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD ? 'SET (' + process.env.GMAIL_APP_PASSWORD.length + ' chars)' : '❌ MISSING');
+  await mongoose.connect(process.env.MONGO_URI);
+  console.log('✅ MongoDB connected');
 
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
+  const User = require('./models/User');
+  const candidates = await User.find({ role: 'candidate', email: { $exists: true, $ne: '' } }).select('name email');
+  
+  console.log(`\nFound ${candidates.length} candidates in User model:`);
+  candidates.forEach(c => console.log(` - ${c.name || 'No name'} <${c.email}>`));
 
-  try {
-    console.log('\nVerifying transporter...');
-    await transporter.verify();
-    console.log('✅ Transporter verified!');
-
-    console.log('Sending test email...');
-    const info = await transporter.sendMail({
-      from: `"NaukriQuest AI" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      subject: '✅ NaukriQuest Email Test',
-      html: '<h1 style="color:#0077ff">Email is working!</h1><p>Your NaukriQuest notification system is live.</p>',
-    });
-    console.log('✅ Email sent! Message ID:', info.messageId);
-  } catch (err) {
-    console.error('❌ Error:', err.message);
+  if (candidates.length === 0) {
+    console.log('\n❌ No candidates found — emails won\'t send because no candidate accounts exist yet!');
+    mongoose.disconnect();
+    return;
   }
+
+  // Now test sending to the first candidate
+  const { blastJobNotification } = require('./services/emailService');
+  const fakeJob = {
+    _id: new mongoose.Types.ObjectId(),
+    title: 'Test Job — Email Blast Working!',
+    company: 'NaukriQuest Test',
+    location: 'Remote',
+    type: 'Full-time',
+    salary: '10-20 LPA',
+    apply_link: '',
+  };
+
+  console.log('\n📣 Triggering blast...');
+  await blastJobNotification(fakeJob);
+  
+  console.log('\n✅ Blast complete. Check inboxes!');
+  mongoose.disconnect();
 }
-test();
+
+test().catch(err => { console.error(err); process.exit(1); });

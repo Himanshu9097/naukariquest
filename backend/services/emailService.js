@@ -1,19 +1,16 @@
 const nodemailer = require('nodemailer');
 
-let _transporter = null;
-
 const getTransporter = () => {
-  if (_transporter) return _transporter;
-  _transporter = nodemailer.createTransport({
+  // Create fresh each time to always use current env vars
+  return nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
     secure: true, // SSL
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD, // Gmail App Password (16-char)
+      pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
-  return _transporter;
 };
 
 /**
@@ -100,46 +97,60 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 };
 
 /**
- * Blast job notifications to ALL candidates with emails
- * Call this whenever any new job is created (recruiter-posted OR LinkedIn-scraped)
+ * Blast job notifications to ALL candidates with emails.
+ * Only triggered when a recruiter posts a job from the Dashboard.
  */
 const blastJobNotification = async (savedJob) => {
   try {
+    const User = require('../models/User');
     const Candidate = require('../models/Candidate');
 
-    // Get all candidates who have an email
-    const candidates = await Candidate.find({ email: { $exists: true, $ne: '' } }).select('_id name email userId');
-    if (!candidates.length) {
-      console.log('📭 No candidates to notify.');
+    // Query User model — emails are ALWAYS stored here at registration
+    const candidateUsers = await User.find({
+      role: 'candidate',
+      email: { $exists: true, $ne: '' }
+    }).select('_id name email');
+
+    if (!candidateUsers.length) {
+      console.log('📭 No candidate users to notify.');
       return;
     }
 
-    console.log(`📣 Blasting job notification to ${candidates.length} candidates for "${savedJob.title}"...`);
+    console.log(`📣 Blasting to ${candidateUsers.length} candidates for "${savedJob.title}"...`);
 
     let sent = 0;
-    for (const candidate of candidates) {
-      // 1. Push in-app notification
-      await Candidate.findByIdAndUpdate(candidate._id, {
-        $push: {
-          notifications: {
-            message: `New job posted: "${savedJob.title}" at ${savedJob.company}`,
-            jobId: savedJob._id,
-            read: false,
-            createdAt: new Date(),
-          }
-        }
-      });
+    for (const user of candidateUsers) {
+      // 1. Push in-app notification into Candidate doc (upsert if missing)
+      try {
+        await Candidate.findOneAndUpdate(
+          { $or: [{ userId: user._id }, { email: user.email }] },
+          {
+            $push: {
+              notifications: {
+                message: `New job posted: "${savedJob.title}" at ${savedJob.company}`,
+                jobId: savedJob._id,
+                read: false,
+                createdAt: new Date(),
+              }
+            },
+            $setOnInsert: { userId: user._id, email: user.email, name: user.name }
+          },
+          { upsert: true }
+        );
+      } catch (notifErr) {
+        console.warn(`In-app notif failed for ${user.email}:`, notifErr.message);
+      }
 
       // 2. Send email
       const ok = await sendJobNotificationEmail({
-        to: candidate.email,
-        candidateName: candidate.name,
+        to: user.email,
+        candidateName: user.name,
         job: savedJob,
       });
       if (ok) sent++;
     }
 
-    console.log(`✅ Notifications done: ${sent}/${candidates.length} emails sent for "${savedJob.title}"`);
+    console.log(`✅ Done: ${sent}/${candidateUsers.length} emails sent for "${savedJob.title}"`);
   } catch (err) {
     console.error('Blast notification error:', err.message);
   }
