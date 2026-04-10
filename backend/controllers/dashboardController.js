@@ -114,9 +114,11 @@ const updateApplicationStatus = async (req, res) => {
                     jobId: app.jobId._id,
                     read: false,
                     createdAt: new Date(),
-                  }
-                }
-              }
+                  },
+                },
+              },
+              { upsert: true }
+            );
           }
         } catch (notifErr) {
           console.error('Status update notification failed:', notifErr.message);
