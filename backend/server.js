@@ -7,9 +7,15 @@ const connectDB = require('./config/db');
 dotenv.config({ path: __dirname + '/.env' });
 
 // Connect to MongoDB
-connectDB();
+try {
+  connectDB();
+} catch (e) {
+  console.error('DB Startup Error:', e);
+}
 
 const app = express();
+
+// Global Error Handler (Moved to end)
 
 // Middleware
 app.use(cors());
@@ -41,5 +47,15 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`🤖 Cloudflare AI: ${process.env.CF_API_TOKEN ? 'Ready' : 'Missing key'}\n`);
   });
 }
+
+// Error handler must be after routes
+app.use((err, req, res, next) => {
+  console.error('🔥 Global Error caught:', err.stack);
+  res.status(500).json({ 
+    error: 'Internal Server Error', 
+    message: err.message,
+    stack: process.env.NODE_ENV === 'production' ? null : err.stack 
+  });
+});
 
 module.exports = app;
